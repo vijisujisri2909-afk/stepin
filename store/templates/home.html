@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StepUp.in</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
 .slide{display:none; width:100%; height:100%; align-items:center; justify-content:center; position:absolute; inset:0; animation:fade 1s}
 .slide.active{display:flex}
@@ -13,14 +14,8 @@
 .dot.active{background:#000 !important; opacity:1 !important; transform:scale(1.3); border-color:white; box-shadow:0 0 0 2px black}
 #slider-dots{background:rgba(255,255,255,0.8); padding:8px 16px; border-radius:20px; backdrop-filter:blur(5px)}
 @keyframes fade{from{opacity:.4} to{opacity:1}}
-@keyframes floatMove{
-  0%{transform:translate(0,0)}
-  25%{transform:translate(20px,-10px)}
-  50%{transform:translate(-10px,10px)}
-  75%{transform:translate(15px,5px)}
-  100%{transform:translate(0,0)}
-}
-.floating-shop{animation:floatMove 4s ease-in-out infinite}
+.floating-shop{transition:transform .25s ease}
+.floating-shop:hover{transform:translateY(-4px)}
 
 .shoe-card{ perspective:1000px; }
 .shoe-card img{ transition:transform 0.8s cubic-bezier(0.34,1.56,0.64,1); cursor:pointer; }
@@ -177,12 +172,12 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
     <p id="cartCheckoutNotice" class="text-center text-sm text-red-700 mt-2" role="status"></p>
     <h3 class="font-serif font-bold mt-5 mb-2">Express Checkout</h3>
     <div class="max-w-[565px] mx-auto grid gap-2">
-      <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-semibold hover:bg-gray-50">G Pay</button>
+      <button type="button" onclick="showCheckoutPage()" class="border border-gray-500 py-2 font-semibold hover:bg-gray-50">G Pay / UPI</button>
       <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-bold italic text-[#003087] hover:bg-gray-50">PayPal</button>
       <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-bold hover:bg-gray-50">clearpay</button>
       <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-bold text-[#17134a] hover:bg-gray-50">Klarna</button>
     </div>
-    <p id="paymentSetupNotice" class="hidden text-center text-sm text-gray-700 mt-3" role="status">Online payments are not connected yet. You can continue with Cash on Delivery.</p>
+    <p id="paymentSetupNotice" class="hidden text-center text-sm text-gray-700 mt-3" role="status">Razorpay is available from the secure payment button on the checkout page. You can also continue with Cash on Delivery.</p>
   </main>
 </section>
 
@@ -197,6 +192,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
   </header>
   <main class="max-w-7xl mx-auto p-4 md:p-8">
     <form id="checkoutForm" onsubmit="submitCheckout(event)" class="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] shadow-sm">
+      {% csrf_token %}
       <aside class="bg-[#2d4a45] text-white p-6 md:p-8">
         <h2 class="font-serif text-[23px] font-bold mb-8">Order Summary</h2>
         <div id="checkoutItems" class="space-y-5"></div>
@@ -227,8 +223,9 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
             <img src="/media/images/image%20(49).png" alt="Klarna" class="h-8 max-w-[80px] object-contain">
           </div>
           <label class="flex items-center gap-3 bg-white p-3 cursor-pointer"><input type="radio" name="payment_method" value="cod" checked><span>Cash on Delivery</span></label>
+          <label class="mt-2 flex items-center gap-3 bg-white p-3 cursor-pointer"><input type="radio" name="payment_method" value="razorpay"><span>Razorpay: UPI, GPay, PhonePe, Cards and Wallets</span></label>
           <div class="mt-2 border border-gray-300 bg-white p-3 text-sm text-gray-700">
-            Online card and wallet payments require a configured secure payment provider. Card numbers and security codes are not collected on this page.
+            Payments are processed securely by Razorpay. Card numbers and security codes are not collected on this page.
           </div>
         </section>
         <section class="mt-7">
@@ -243,6 +240,8 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
           </div>
         </section>
         <p id="checkoutStatus" class="mt-4 text-sm text-red-700" role="status" aria-live="polite"></p>
+        <button type="button" id="razorpayPayButton" onclick="startRazorpayPayment()" class="mt-4 rounded-lg bg-[#1a2a3a] px-8 py-3 font-semibold text-white hover:bg-black">Pay with GPay / PhonePe / UPI</button>
+        <p id="razorpayStatus" class="mt-2 text-sm text-gray-700" role="status" aria-live="polite"></p>
         <button type="submit" class="mt-4 bg-[#2d4a45] text-white font-semibold px-8 py-3 rounded-lg hover:bg-[#203632]">Place COD Order</button>
       </div>
     </form>
@@ -593,7 +592,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       </div>
       <div class="filter-wrapper relative ml-auto">
         <button type="button" onclick="toggleFilter('kids-sort')" class="filter-btn bg-[#4a5a6a] text-white w-[170px] px-4 py-2.5 flex justify-between items-center text-[14px] font-medium">Sort by <span id="kids-sort-arrow">▲</span></button>
-        <div id="kids-sort-dropdown" class="hidden absolute top-full right-0 w-[200px] bg-white border border-black z-50 text-[14px] shadow-lg"> <div class="px-3 py-2 hover:bg-gray-100">Featured</div><div class="px-3 py-2 hover:bg-gray-100">Price: Low-High</div><div class="px-3 py-2 hover:bg-gray-100">Price: High-Low</div></div>
+        <div id="kids-sort-dropdown" class="hidden absolute top-full right-0 w-[200px] bg-white border border-black z-50 text-[14px] shadow-lg"> <div class="px-3 py-2 hover:bg-gray-100">All</div><div class="px-3 py-2 hover:bg-gray-100">New Arrivals</div><div class="px-3 py-2 hover:bg-gray-100">Price: Low-High</div><div class="px-3 py-2 hover:bg-gray-100">Price: High-Low</div></div>
       </div>
     </div>
   </div>
@@ -644,7 +643,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       </div>
       <div class="filter-wrapper relative ml-auto">
         <button type="button" onclick="toggleFilter('men-sort')" class="filter-btn bg-[#4a5a6a] text-white w-[170px] px-4 py-2.5 flex justify-between items-center text-[14px] font-medium">Sort by <span id="men-sort-arrow">▲</span></button>
-        <div id="men-sort-dropdown" class="hidden absolute top-full right-0 w-[200px] bg-white border border-black z-50 text-[14px] shadow-lg"><div class="px-3 py-2 hover:bg-gray-100">Featured</div><div class="px-3 py-2 hover:bg-gray-100">Price: Low-High</div><div class="px-3 py-2 hover:bg-gray-100">Price: High-Low</div></div>
+        <div id="men-sort-dropdown" class="hidden absolute top-full right-0 w-[200px] bg-white border border-black z-50 text-[14px] shadow-lg"><div class="px-3 py-2 hover:bg-gray-100">All</div><div class="px-3 py-2 hover:bg-gray-100">New Arrivals</div><div class="px-3 py-2 hover:bg-gray-100">Price: Low-High</div><div class="px-3 py-2 hover:bg-gray-100">Price: High-Low</div></div>
       </div>
     </div>
   </div>
@@ -666,6 +665,25 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
   <div id="heelsProductGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-6 md:px-10 pb-10"></div>
 </div>
 
+<section id="allProductsPage" style="display:none" class="hidden min-h-screen bg-white">
+  <header class="bg-white border-b border-gray-200">
+    <div class="flex flex-wrap items-center justify-between gap-4 px-6 py-4 md:px-12">
+      <button type="button" onclick="goHome()" class="font-semibold text-gray-700 hover:text-black">← Home</button>
+      <h1 class="font-serif text-2xl font-bold tracking-wide">All Shoes</h1>
+      <button type="button" onclick="showCartPage()" class="font-semibold text-gray-700 hover:text-black">Cart</button>
+    </div>
+    <nav class="flex flex-wrap justify-center gap-5 border-t border-gray-200 px-4 py-3 text-sm font-medium md:gap-8 md:text-base" aria-label="Shoe collections">
+      <button type="button" onclick="showWomensPage()" class="hover:text-[#2d4a45]">Women</button>
+      <button type="button" onclick="showMensPage()" class="hover:text-[#2d4a45]">Men</button>
+      <button type="button" onclick="showKidsPage()" class="hover:text-[#2d4a45]">Kids</button>
+    </nav>
+  </header>
+  <main class="mx-auto max-w-7xl px-4 py-8 md:px-8">
+    <p id="allProductsCount" class="mb-5 text-sm text-gray-600" aria-live="polite"></p>
+    <div id="allProductsGrid" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"></div>
+  </main>
+</section>
+
 <!-- ================================= HOME PAGE ================================= -->
 <div id="homePage">
 
@@ -676,8 +694,8 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       <div class="flex justify-center gap-6 md:gap-10 text-[16px] md:text-[18px] font-bold tracking-wide text-gray-600 mt-3 border-y py-3">
         <button type="button" onclick="goHome()" class="hover:text-[#ff4500]">Home</button>
         <button id="navWomens" type="button" onmouseenter="showMenu('womensMegaMenu')" onmouseleave="hideMenu('womensMegaMenu')" onfocus="showMenu('womensMegaMenu')" onclick="showWomensPage()" class="hover:text-[#ff4500]">Womens</button>
-        <button id="navMens" type="button" onmouseenter="showMenu('mensMegaMenu')" onmouseleave="hideMenu('mensMegaMenu')" onfocus="showMenu('mensMegaMenu')" onclick="showMenu('mensMegaMenu')" class="hover:text-[#ff4500]">Mens</button>
-        <button id="navKids" type="button" onmouseenter="showMenu('kidsMegaMenu')" onmouseleave="hideMenu('kidsMegaMenu')" onfocus="showMenu('kidsMegaMenu')" onclick="showMenu('kidsMegaMenu')" class="hover:text-[#ff4500]">Kids</button>
+        <button id="navMens" type="button" onmouseenter="showMenu('mensMegaMenu')" onmouseleave="hideMenu('mensMegaMenu')" onfocus="showMenu('mensMegaMenu')" onclick="showMensPage()" class="hover:text-[#ff4500]">Mens</button>
+        <button id="navKids" type="button" onmouseenter="showMenu('kidsMegaMenu')" onmouseleave="hideMenu('kidsMegaMenu')" onfocus="showMenu('kidsMegaMenu')" onclick="showKidsPage()" class="hover:text-[#ff4500]">Kids</button>
         <button id="navBrands" type="button" onmouseenter="showMenu('brandsMegaMenu')" onmouseleave="hideMenu('brandsMegaMenu')" onfocus="showMenu('brandsMegaMenu')" onclick="showMenu('brandsMegaMenu')" class="hover:text-[#ff4500]">Brands</button>
         <button id="navOffers" type="button" onmouseenter="showMenu('offersMegaMenu')" onmouseleave="hideMenu('offersMegaMenu')" onfocus="showMenu('offersMegaMenu')" onclick="showMenu('offersMegaMenu')" class="hover:text-[#ff4500]">Offers</button>
       </div>
@@ -768,7 +786,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       <img src="/media/images/men1.jpg" onerror="this.onerror=null;this.src='/media/images/red.jpg'" alt="Men's brown loafer" class="w-full h-full object-cover" style="object-position: center bottom;">
       <div class="absolute right-10 z-10 bg-black text-white text-base md:text-lg font-semibold px-6 py-4 max-w-[220px] rounded-xl">Men's wear high heel office shoe only 40% discount today only</div>
       <div class="floating-shop absolute bottom-8 left-8 z-20">
-        <button type="button" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
+        <button type="button" onclick="showMensPage()" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
       </div>
     </div>
 
@@ -776,7 +794,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       <img src="/media/images/red.jpg" onerror="this.onerror=null;this.src='/media/images/blue.jpg'" alt="Women's red heels" class="w-full h-full object-cover object-bottom">
       <div class="absolute left-8 z-10 bg-black text-white text-base md:text-lg font-semibold px-6 py-4 max-w-[220px] rounded-xl">Womens red color high heel for party your first order get a free gift</div>
       <div class="floating-shop absolute bottom-8 left-8 z-20">
-        <button type="button" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
+        <button type="button" onclick="showWomensPage()" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
       </div>
     </div>
 
@@ -784,9 +802,9 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       <img src="/media/images/shoe1.jpg" onerror="this.onerror=null;this.src='/media/images/men1.jpg'" alt="Kids shoes" class="w-1/3 h-full flex-none object-cover">
       <img src="/media/images/shoe1.jpg" onerror="this.onerror=null;this.src='/media/images/men1.jpg'" alt="Kids shoes" class="w-1/3 h-full flex-none object-cover">
       <img src="/media/images/shoe1.jpg" onerror="this.onerror=null;this.src='/media/images/men1.jpg'" alt="Kids shoes" class="w-1/3 h-full flex-none object-cover">
-      <div class="absolute left-6 top-6 z-10 bg-black text-white rounded-xl px-4 py-2 text-[13px]">Flat 50% Sale<br>kids shos</div>
+      <div class="absolute left-6 top-6 z-10 bg-black text-white rounded-xl px-4 py-2 text-[13px]">Flat 50% Sale<br>Kids shoes</div>
       <div class="floating-shop absolute bottom-8 left-8 z-20">
-        <button type="button" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
+        <button type="button" onclick="showKidsPage()" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
       </div>
     </div>
 
@@ -794,7 +812,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       <img src="/media/images/blue.jpg" onerror="this.onerror=null;this.src='/media/images/men1.jpg'" alt="Blue heels" class="w-full h-full object-cover">
       <div class="absolute right-10 z-10 bg-black text-white text-base md:text-lg font-semibold px-6 py-4 max-w-[220px] rounded-xl">Womens High Heels Flat 30% offer for your first order</div>
       <div class="floating-shop absolute bottom-8 left-8 z-20">
-        <button type="button" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
+        <button type="button" onclick="showWomensPage()" class="bg-white text-black px-8 py-3 rounded-full text-[15px] font-bold shadow-xl transition-all duration-300 hover:bg-black hover:text-white hover:scale-110 hover:shadow-2xl active:scale-95">Shop Now</button>
       </div>
     </div>
 
@@ -921,7 +939,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
 
     </div>
     <div class="flex justify-end mt-8 max-w-7xl mx-auto">
-      <button type="button" class="bg-[#2d4a4a] text-white px-6 py-2.5 rounded-[10px] text-[16px] font-medium">View all</button>
+      <button type="button" onclick="showAllProductsPage()" class="bg-[#2d4a4a] text-white px-6 py-2.5 rounded-[10px] text-[16px] font-medium hover:bg-black transition-colors">View all shoes</button>
     </div>
   </section>
 
@@ -1061,7 +1079,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       </button>
       <div id="sort-dropdown" class="hidden absolute top-full right-0 w-[200px] bg-white border border-black z-50 text-[14px] shadow-lg">
         <div class="px-3 py-2 border-b border-black flex justify-between items-center cursor-pointer hover:bg-gray-100 font-medium">
-          Featured ✓
+          All
         </div>
         <div class="px-3 py-2 border-b border-black cursor-pointer hover:bg-gray-100">
           New Arrivals
@@ -1375,7 +1393,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
   </div>
 
   <div class="flex justify-end px-10 pb-10">
-    <button class="bg-[#2d4a45] text-white px-6 py-3 rounded-[10px] text-[16px] font-medium hover:bg-[#203632] transition cursor-pointer" style="background-color: #2d4a45;">View all</button>
+    <button type="button" onclick="showAllProductsPage()" class="bg-[#2d4a45] text-white px-6 py-3 rounded-[10px] text-[16px] font-medium hover:bg-[#203632] transition cursor-pointer" style="background-color: #2d4a45;">View all shoes</button>
   </div>
 
 </div>
@@ -1676,7 +1694,7 @@ function addCartItem(product){
 }
 
 function hideMainScreens(){
-  ["homePage", "loginPage", "aboutPage", "contactPage", "cartPage", "checkoutPage", "orderConfirmationPage", "trackingPage", "kidsPage", "mensPage", "womensPage", "heelsPage"].forEach(id => {
+  ["homePage", "loginPage", "aboutPage", "contactPage", "cartPage", "checkoutPage", "orderConfirmationPage", "trackingPage", "kidsPage", "mensPage", "womensPage", "heelsPage", "allProductsPage"].forEach(id => {
     const page = document.getElementById(id);
     page.style.display = "none";
     page.classList.add("hidden");
@@ -1825,6 +1843,85 @@ function showCheckoutPage(){
   showMainScreen("checkoutPage");
   renderCheckoutSummary();
   window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+const razorpayKeyId = "{{ razorpay_key_id|default:''|escapejs }}";
+
+async function startRazorpayPayment(){
+  const form = document.getElementById("checkoutForm");
+  const status = document.getElementById("razorpayStatus");
+  const button = document.getElementById("razorpayPayButton");
+  if(shoppingCart.length === 0){
+    status.textContent = "Your cart is empty.";
+    return;
+  }
+  if(!form.reportValidity()) return;
+  if(typeof Razorpay === "undefined"){
+    status.textContent = "The Razorpay checkout could not be loaded. Please try again.";
+    return;
+  }
+
+  const formData = new FormData(form);
+  const csrfToken = formData.get("csrfmiddlewaretoken");
+  const customer = Object.fromEntries(formData.entries());
+  delete customer.csrfmiddlewaretoken;
+  delete customer.payment_method;
+  button.disabled = true;
+  status.textContent = "Preparing secure payment...";
+
+  try{
+    const orderResponse = await fetch("{% url 'create_razorpay_order' %}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+      credentials: "same-origin",
+      body: JSON.stringify({items: shoppingCart, customer})
+    });
+    const order = await orderResponse.json();
+    if(!orderResponse.ok) throw new Error(order.error || "Could not create the Razorpay order.");
+
+    const checkout = new Razorpay({
+      key: order.key_id || razorpayKeyId,
+      amount: order.amount,
+      currency: order.currency,
+      name: "StepUp.in",
+      description: "StepUp.in shoe order",
+      order_id: order.order_id,
+      prefill: {name: [customer.first_name, customer.last_name].filter(Boolean).join(" "), email: customer.email, contact: customer.phone},
+      theme: {color: "#2d4a45"},
+      config: {
+        display: {
+          blocks: {
+            upi: {name: "Pay with UPI", instruments: [{method: "upi"}]},
+            cards: {name: "Cards", instruments: [{method: "card"}]},
+            wallets: {name: "Wallets", instruments: [{method: "wallet"}]}
+          },
+          sequence: ["block.upi", "block.cards", "block.wallets", "block.netbanking"],
+          preferences: {show_default_blocks: true}
+        }
+      },
+      handler: async function(payment){
+        status.textContent = "Verifying your payment...";
+        const verifyResponse = await fetch("{% url 'verify_payment' %}", {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+          credentials: "same-origin",
+          body: JSON.stringify(payment)
+        });
+        const verification = await verifyResponse.json();
+        if(!verifyResponse.ok || !verification.success) throw new Error(verification.error || "Payment verification failed.");
+        window.location.href = "{% url 'payment_success' %}?reference=" + encodeURIComponent(verification.reference);
+      }
+    });
+    checkout.on("payment.failed", failure => {
+      status.textContent = failure.error?.description || "Payment failed. You can try again or choose Cash on Delivery.";
+      button.disabled = false;
+    });
+    checkout.open();
+    status.textContent = "Complete payment in the secure Razorpay window.";
+  } catch(error){
+    status.textContent = error.message || "Could not start payment.";
+    button.disabled = false;
+  }
 }
 
 function submitCheckout(event){
@@ -2244,6 +2341,16 @@ function showKidsPage(){
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
+function showAllProductsPage(){
+  hideAllMegaMenus();
+  hideMainScreens();
+  document.getElementById("myPopup").style.display = "none";
+  document.getElementById("shoeDetailPopup").style.display = "none";
+  document.getElementById("kidsDetailModal").style.display = "none";
+  showMainScreen("allProductsPage");
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+
 function goHome(){
   clearTimeout(womenPopupTimer);
   hideAllMegaMenus();
@@ -2445,6 +2552,64 @@ function getCollectionCards(collection){
   return Array.from(document.querySelectorAll(selector));
 }
 
+function buildAllProducts(){
+  const grid = document.getElementById("allProductsGrid");
+  const collections = [
+    {selector:"#womensProductGrid > div", name:"Women"},
+    {selector:"#mensProductGrid > article", name:"Men"},
+    {selector:"#kidsProductGrid > article", name:"Kids"}
+  ];
+  let productCount = 0;
+
+  collections.forEach(({selector,name}) => {
+    document.querySelectorAll(selector).forEach(source => {
+      const image = source.querySelector("img");
+      const title = source.querySelector("h3");
+      const price = getProductPrice(source);
+      if(!image || !title || price <= 0){
+        console.error("Could not read a product while building the all-shoes catalog.", source);
+        return;
+      }
+
+      const card = document.createElement("article");
+      card.className = "flex flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg";
+      const imageBox = document.createElement("div");
+      imageBox.className = "flex h-64 items-center justify-center bg-[#f5f5f5] p-4";
+      const productImage = document.createElement("img");
+      productImage.src = image.src;
+      productImage.alt = title.textContent.trim();
+      productImage.className = "max-h-full max-w-full object-contain";
+      imageBox.appendChild(productImage);
+
+      const details = document.createElement("div");
+      details.className = "flex flex-grow flex-col p-4";
+      const category = document.createElement("p");
+      category.className = "text-xs font-semibold uppercase tracking-wide text-gray-500";
+      category.textContent = name;
+      const productTitle = document.createElement("h3");
+      productTitle.className = "mt-1 font-serif font-bold text-gray-900";
+      productTitle.textContent = title.textContent.trim();
+      const rating = document.createElement("p");
+      rating.className = "mt-2 text-amber-500";
+      rating.setAttribute("aria-label", "5 out of 5 stars");
+      rating.textContent = "★★★★★";
+      const productPrice = document.createElement("p");
+      productPrice.className = "mt-1 font-semibold text-gray-900";
+      productPrice.textContent = "MRP ₹ " + price.toLocaleString("en-IN");
+      const actions = document.createElement("div");
+      actions.className = "mt-auto flex flex-wrap gap-2 pt-4";
+      actions.innerHTML = '<button type="button" class="rounded-full border border-black px-4 py-2 text-xs font-medium hover:bg-black hover:text-white">Buy</button><button type="button" class="rounded-full bg-[#2d4a45] px-4 py-2 text-xs font-medium text-white hover:bg-[#203632]">Add to Cart</button>';
+      details.append(category, productTitle, rating, productPrice, actions);
+      card.append(imageBox, details);
+      wireProductCardActions(card);
+      grid.appendChild(card);
+      productCount += 1;
+    });
+  });
+
+  document.getElementById("allProductsCount").textContent = "Showing all " + productCount + " shoes";
+}
+
 function inferProductStyle(title){
   const value = title.toLocaleLowerCase();
   if(value.includes("heel")) return "heels";
@@ -2532,13 +2697,13 @@ function collectionFilterOptions(collection, filter){
     const colors = getCollectionCards(collection).flatMap(card => (card.dataset.colors || "").split(",").filter(Boolean));
     return ["All colors", ...Array.from(new Set(colors)).sort((left, right) => left.localeCompare(right))];
   }
-  return ["Featured","New Arrivals","Price: Low-High","Price: High-Low","Overall Rating"];
+  return ["All","New Arrivals","Price: Low-High","Price: High-Low","Overall Rating"];
 }
 
 function applyCollectionFilters(collection){
   const cards = getCollectionCards(collection);
   const state = collectionFilterState[collection];
-  const sort = state.sort || "Featured";
+  const sort = state.sort || "All";
   const visibleCards = cards.filter(card => {
     const style = state.style;
     const sizes = (card.dataset.sizes || "").split(",");
@@ -2555,7 +2720,10 @@ function applyCollectionFilters(collection){
   if(sort === "Price: Low-High") visibleCards.sort((a,b) => getProductPrice(a) - getProductPrice(b));
   else if(sort === "Price: High-Low") visibleCards.sort((a,b) => getProductPrice(b) - getProductPrice(a));
   else if(sort === "Overall Rating") visibleCards.sort((a,b) => getProductRating(b) - getProductRating(a));
-  else visibleCards.sort((a,b) => Number(a.dataset.originalOrder) - Number(b.dataset.originalOrder));
+  else {
+    visibleCards.sort((a,b) => Number(a.dataset.originalOrder) - Number(b.dataset.originalOrder));
+    if(sort === "New Arrivals") visibleCards.splice(4);
+  }
   const grid = collection === "women"
     ? document.getElementById("womensProductGrid")
     : document.getElementById(collection === "men" ? "mensProductGrid" : "kidsProductGrid");
@@ -2567,7 +2735,7 @@ function applyCollectionFilters(collection){
   const status = document.getElementById(collection + "FilterStatus");
   if(status){
     const activeFilters = ["style","brand","color","size"].filter(key => state[key]).map(key => state[key]);
-    if(sort !== "Featured") activeFilters.push(sort);
+    if(sort !== "All" && sort !== "Featured") activeFilters.push(sort);
     status.textContent = activeFilters.length
       ? "Showing " + visibleCards.length + " of " + cards.length + " shoes · " + activeFilters.join(" · ")
       : "Showing all " + cards.length + " shoes";
@@ -2664,6 +2832,7 @@ document.querySelectorAll("#womensPage .grid.grid-cols-4 > div").forEach(card =>
 });
 initializeCollectionProductData();
 setupCollectionFilters();
+buildAllProducts();
 
 document.querySelectorAll("#kidsProductGrid .kids-like").forEach(button => {
   button.addEventListener("click", event => {
@@ -2756,6 +2925,19 @@ document.addEventListener("keydown", event => {
 function toggleFilter(name){
   if (name === 'sortby' || name === 'sort-by') name = 'sort';
   if (name === 'brand') name = 'brands';
+
+  // Women uses the unprefixed dropdown IDs; Men and Kids use page-specific IDs.
+  // Resolve the prefix from the collection page currently being displayed so
+  // the same filter buttons always open their own dropdown.
+  if (!name.startsWith('men-') && !name.startsWith('kids-')) {
+    const mensPage = document.getElementById('mensPage');
+    const kidsPage = document.getElementById('kidsPage');
+    if (kidsPage && kidsPage.style.display !== 'none' && !kidsPage.classList.contains('hidden')) {
+      name = 'kids-' + name;
+    } else if (mensPage && mensPage.style.display !== 'none' && !mensPage.classList.contains('hidden')) {
+      name = 'men-' + name;
+    }
+  }
 
   document.querySelectorAll('[id$="-dropdown"]').forEach(d => {
     if (d.id !== name + '-dropdown') {
