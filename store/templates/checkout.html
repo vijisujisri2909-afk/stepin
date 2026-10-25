@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout - Shoe Store</title>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body style="padding:30px;">
+<h2>Shoe Store checkout</h2>
+<p>International cards are not supported in Test Mode (India) - Use Indian test card.</p>
+<p>Amount: Rs 500</p>
+<p id="status">Ready for payment.</p>
+<button type="button" id="pay-btn" style="padding:10px 20px; background:#000; color:#fff; cursor:pointer;">Pay with Razorpay</button>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+document.getElementById('pay-btn').addEventListener('click', async function(e){
+    e.preventDefault();
+    const btn = e.target;
+    if(btn.disabled) return;
+    btn.disabled = true;
+    document.getElementById('status').innerText = "Creating order...";
+    
+    try {
+        const res = await fetch('/payments/razorpay/create-order/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({amount: 500})
+        });
+        const data = await res.json();
+        console.log("Order Data:", data);
+        
+        if(!data.order_id){
+            alert("Order ID missing: " + JSON.stringify(data));
+            btn.disabled = false;
+            return;
+        }
+        
+        var options = {
+            "key": data.key_id,
+            "amount": data.amount,
+            "currency": "INR",
+            "name": "Shoe Store",
+            "description": "Test Transaction",
+            "order_id": data.order_id,
+            "handler": function (response){
+                document.getElementById('status').innerText = "Payment Success: " + response.razorpay_payment_id;
+                alert("Payment Success! ID: " + response.razorpay_payment_id);
+                window.location.href = "/success/";
+            },
+            "prefill": {"name": "Suresh", "email": "suresh@test.com", "contact": "9999999999"},
+            "theme": {"color": "#3399cc"},
+            "modal": {"ondismiss": function(){ btn.disabled = false; document.getElementById('status').innerText = "Ready for payment."; }}
+        };
+        var rzp = new Razorpay(options);
+        rzp.on('payment.failed', function (response){ alert(response.error.description); btn.disabled = false; });
+        rzp.open();
+        document.getElementById('status').innerText = "Razorpay opened";
+    } catch(err){
+        console.error(err);
+        alert("Error: " + err.message);
+        btn.disabled = false;
+    }
+});
+</script>
+</body>
+</html>

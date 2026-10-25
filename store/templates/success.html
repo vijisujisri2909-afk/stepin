@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment successful - Shoe Store</title>
+</head>
+<body>
+  <main>
+    <h1>Payment successful</h1>
+    <p>Your Razorpay payment was verified successfully.</p>
+    {% if reference %}<p>Reference: {{ reference }}</p>{% endif %}
+    <a href="{% url 'home' %}">Continue shopping</a>
+  </main>
+</body>
+</html>
