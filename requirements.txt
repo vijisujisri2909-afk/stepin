@@ -5,4 +5,4 @@ dj-database-url
 psycopg2-binary
 razorpay
 python-dotenv
-Pillowgit
+Pillow
