@@ -170,14 +170,6 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
       <span aria-hidden="true">♙</span> Checkout Securely
     </button>
     <p id="cartCheckoutNotice" class="text-center text-sm text-red-700 mt-2" role="status"></p>
-    <h3 class="font-serif font-bold mt-5 mb-2">Express Checkout</h3>
-    <div class="max-w-[565px] mx-auto grid gap-2">
-      <button type="button" onclick="showCheckoutPage()" class="border border-gray-500 py-2 font-semibold hover:bg-gray-50">G Pay / UPI</button>
-      <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-bold italic text-[#003087] hover:bg-gray-50">PayPal</button>
-      <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-bold hover:bg-gray-50">clearpay</button>
-      <button type="button" onclick="showPaymentSetupNotice()" class="border border-gray-500 py-2 font-bold text-[#17134a] hover:bg-gray-50">Klarna</button>
-    </div>
-    <p id="paymentSetupNotice" class="hidden text-center text-sm text-gray-700 mt-3" role="status">Razorpay is available from the secure payment button on the checkout page. You can also continue with Cash on Delivery.</p>
   </main>
 </section>
 
@@ -215,18 +207,8 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
         </section>
         <section class="mt-7">
           <h3 class="font-serif text-[20px] font-bold mb-3">Payment Details</h3>
-          <div class="flex flex-wrap items-center gap-3 mb-4">
-            <img src="/media/images/image%20(1).png" alt="Visa" class="h-8 max-w-[72px] object-contain">
-            <span class="font-bold text-[#4055a3]">G Pay</span>
-            <img src="/media/images/image%20(47).png" alt="PayPal" class="h-8 max-w-[82px] object-contain">
-            <img src="/media/images/image%20(48).png" alt="Clearpay" class="h-8 max-w-[90px] object-contain">
-            <img src="/media/images/image%20(49).png" alt="Klarna" class="h-8 max-w-[80px] object-contain">
-          </div>
           <label class="flex items-center gap-3 bg-white p-3 cursor-pointer"><input type="radio" name="payment_method" value="cod" checked><span>Cash on Delivery</span></label>
           <label class="mt-2 flex items-center gap-3 bg-white p-3 cursor-pointer"><input type="radio" name="payment_method" value="razorpay"><span>Razorpay: UPI, GPay, PhonePe, Cards and Wallets</span></label>
-          <div class="mt-2 border border-gray-300 bg-white p-3 text-sm text-gray-700">
-            Payments are processed securely by Razorpay. Card numbers and security codes are not collected on this page.
-          </div>
         </section>
         <section class="mt-7">
           <h3 class="font-serif text-[20px] font-bold mb-3">Shipping Address</h3>
@@ -240,7 +222,7 @@ img.page-photo.reveal-item.is-visible:hover{transform:translateY(-6px) scale(1.0
           </div>
         </section>
         <p id="checkoutStatus" class="mt-4 text-sm text-red-700" role="status" aria-live="polite"></p>
-        <button type="button" id="razorpayPayButton" onclick="startRazorpayPayment()" class="mt-4 rounded-lg bg-[#1a2a3a] px-8 py-3 font-semibold text-white hover:bg-black">Pay with GPay / PhonePe / UPI</button>
+        <button type="button" id="razorpayPayButton" onclick="startRazorpayPayment(event)" class="mt-4 rounded-lg bg-[#1a2a3a] px-8 py-3 font-semibold text-white hover:bg-black">Pay with GPay / PhonePe / UPI</button>
         <p id="razorpayStatus" class="mt-2 text-sm text-gray-700" role="status" aria-live="polite"></p>
         <button type="submit" class="mt-4 bg-[#2d4a45] text-white font-semibold px-8 py-3 rounded-lg hover:bg-[#203632]">Place COD Order</button>
       </div>
@@ -1670,6 +1652,10 @@ function getCartTotal(){
   return shoppingCart.reduce((total, item) => total + Number(item.price) * Number(item.quantity), 0);
 }
 
+function getFinalAmountInPaise(){
+  return Math.round(getCartTotal() * 100);
+}
+
 function formatCurrency(amount){
   return "₹ " + Number(amount).toLocaleString("en-IN");
 }
@@ -1847,7 +1833,8 @@ function showCheckoutPage(){
 
 const razorpayKeyId = "{{ razorpay_key_id|default:''|escapejs }}";
 
-async function startRazorpayPayment(){
+async function startRazorpayPayment(event){
+  if(event) event.preventDefault();
   const form = document.getElementById("checkoutForm");
   const status = document.getElementById("razorpayStatus");
   const button = document.getElementById("razorpayPayButton");
@@ -1866,24 +1853,34 @@ async function startRazorpayPayment(){
   const customer = Object.fromEntries(formData.entries());
   delete customer.csrfmiddlewaretoken;
   delete customer.payment_method;
+  const amount = getFinalAmountInPaise();
+  console.log("Final Amount to send:", amount);
   button.disabled = true;
   status.textContent = "Preparing secure payment...";
 
   try{
-    const orderResponse = await fetch("{% url 'create_razorpay_order' %}", {
+    const orderResponse = await fetch("{% url 'api_create_order' %}", {
       method: "POST",
       headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
       credentials: "same-origin",
-      body: JSON.stringify({items: shoppingCart, customer})
+      body: JSON.stringify({
+        amount,
+        payment_method: "RAZORPAY",
+        product_name: shoppingCart.map(item => item.title).join(", "),
+        customer_name: [customer.first_name, customer.last_name].filter(Boolean).join(" "),
+        items: shoppingCart,
+        customer
+      })
     });
     const order = await orderResponse.json();
+    console.log("Razorpay order data:", order);
     if(!orderResponse.ok) throw new Error(order.error || "Could not create the Razorpay order.");
 
     const checkout = new Razorpay({
       key: order.key_id || razorpayKeyId,
       amount: order.amount,
       currency: order.currency,
-      name: "StepUp.in",
+      name: "Shoe Store",
       description: "StepUp.in shoe order",
       order_id: order.order_id,
       prefill: {name: [customer.first_name, customer.last_name].filter(Boolean).join(" "), email: customer.email, contact: customer.phone},
@@ -1924,7 +1921,7 @@ async function startRazorpayPayment(){
   }
 }
 
-function submitCheckout(event){
+async function submitCheckout(event){
   event.preventDefault();
   const form = event.currentTarget;
   if(shoppingCart.length === 0){
@@ -1933,8 +1930,33 @@ function submitCheckout(event){
   }
   if(!form.reportValidity()) return;
 
-  const reference = "SU" + Date.now().toString().slice(-8);
   const formData = new FormData(form);
+  const paymentMethod = formData.get("payment_method");
+  const amount = getFinalAmountInPaise();
+  console.log("Final Amount to send:", amount);
+  const status = document.getElementById("checkoutStatus");
+  status.textContent = "Creating your order...";
+  try{
+    const orderResponse = await fetch("{% url 'api_create_order' %}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "same-origin",
+      body: JSON.stringify({
+        amount,
+        payment_method: paymentMethod === "razorpay" ? "RAZORPAY" : "COD",
+        product_name: shoppingCart.map(item => item.title).join(", "),
+        customer_name: [formData.get("first_name"), formData.get("last_name")].filter(Boolean).join(" "),
+        items: shoppingCart
+      })
+    });
+    const order = await orderResponse.json();
+    if(!orderResponse.ok || !order.success) throw new Error(order.error || "Could not create the order.");
+  } catch(error){
+    status.textContent = error.message || "Could not create the order.";
+    return;
+  }
+
+  const reference = "SU" + Date.now().toString().slice(-8);
   latestOrder = {
     reference,
     destination: [formData.get("city"), formData.get("state"), formData.get("country")].filter(Boolean).join(", "),

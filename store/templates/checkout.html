@@ -8,7 +8,7 @@
 <body style="padding:30px;">
 <h2>Shoe Store checkout</h2>
 <p>International cards are not supported in Test Mode (India) - Use Indian test card.</p>
-<p>Amount: Rs 500</p>
+<p id="amount">Amount: Rs 0</p>
 <p id="status">Ready for payment.</p>
 <button type="button" id="pay-btn" style="padding:10px 20px; background:#000; color:#fff; cursor:pointer;">Pay with Razorpay</button>
 
@@ -36,10 +36,16 @@ document.getElementById('pay-btn').addEventListener('click', async function(e){
     document.getElementById('status').innerText = "Creating order...";
     
     try {
+        const cartItems = JSON.parse(localStorage.getItem('stepup-shopping-cart-v1') || '[]');
+        const total = cartItems.reduce((t, i) => t + Number(i.price) * Number(i.quantity), 0);
+        const amount = Math.round(total * 100);
+        console.log("Final Amount to send:", amount);
+        if (amount <= 0) throw new Error("Your cart is empty.");
+        document.getElementById('amount').innerText = "Amount: Rs " + total.toLocaleString('en-IN');
         const res = await fetch('/payments/razorpay/create-order/', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
-            body: JSON.stringify({amount: 500})
+            body: JSON.stringify({amount, payment_method: 'RAZORPAY'})
         });
         const data = await res.json();
         console.log("Order Data:", data);
