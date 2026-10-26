@@ -1906,7 +1906,11 @@ async function startRazorpayPayment(event){
         });
         const verification = await verifyResponse.json();
         if(!verifyResponse.ok || !verification.success) throw new Error(verification.error || "Payment verification failed.");
-        window.location.href = "{% url 'payment_success' %}?reference=" + encodeURIComponent(verification.reference);
+        const orderReference = verification.reference || verification.order_id;
+        if(!orderReference || orderReference === "undefined" || orderReference === "null"){
+          throw new Error("Payment was verified, but the order reference was not returned. Please contact support.");
+        }
+        window.location.href = "{% url 'payment_success' %}?reference=" + encodeURIComponent(orderReference);
       }
     });
     checkout.on("payment.failed", failure => {

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Track Order - StepUp.in</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <main class="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+    {% if not_found %}
+      <div class="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+        <h1 class="text-2xl font-bold">Order not found</h1>
+        <p class="mt-2 text-gray-600">We could not find order {{ order_id }}.</p>
+      </div>
+    {% else %}
+      <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-5">
+          <div>
+            <h1 class="text-2xl font-bold">Track Your Order</h1>
+            <p class="mt-1 text-sm text-gray-500">Order #EMB{{ order_id|stringformat:'010d' }}</p>
+          </div>
+          <span class="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">{{ order.status|title }}</span>
+        </div>
+        <ol class="mt-8 space-y-6">
+          {% for step in timeline %}
+            <li class="flex items-center gap-4">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">{{ forloop.counter }}</span>
+              <span class="font-semibold">{{ step }}</span>
+              {% if not forloop.last %}<span class="hidden text-sm text-gray-400 sm:inline">Order moving to the next stage</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    {% endif %}
+    <div class="mt-6 flex flex-wrap gap-4 text-sm font-semibold">
+      <a href="/orders/" class="text-indigo-600 hover:underline">My Orders</a>
+      <a href="/" class="text-indigo-600 hover:underline">Continue shopping</a>
+    </div>
+  </main>
+</body>
+</html>

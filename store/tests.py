@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from .models import Order
+
 
 class AccountLoginTests(TestCase):
     def test_login_with_email_and_password_redirects_to_home(self):
@@ -50,5 +52,39 @@ class AccountLoginTests(TestCase):
 
         self.assertRedirects(login_response, "/")
         self.assertTrue(self.client.session.get("_auth_user_id"))
+
+
+class MyOrdersTests(TestCase):
+    def test_orders_page_shows_latest_order_and_track_link(self):
+        order = Order.objects.create(
+            product_name="Runner, Court Shoe",
+            amount=3599800,
+            payment_method="RAZORPAY",
+            payment_id="pay_test_orders_page",
+            status="paid",
+        )
+
+        response = self.client.get("/orders/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"Order #EMB{order.id:010d}")
+        self.assertContains(response, "2 product type(s) - ₹35998")
+        self.assertContains(response, f"/track/{order.id}/")
+
+    def test_orders_api_returns_order_summary(self):
+        Order.objects.create(
+            product_name="Runner",
+            amount=1799900,
+            payment_method="RAZORPAY",
+            payment_id="pay_test_orders_api",
+            status="paid",
+        )
+
+        response = self.client.get("/api/orders/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["product_count"], 1)
+        self.assertEqual(response.json()[0]["total"], 17999)
+        self.assertEqual(response.json()[0]["payment_status"], "Paid")
 
 # Create your tests here.

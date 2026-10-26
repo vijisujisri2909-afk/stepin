@@ -109,13 +109,34 @@ def verify_payment(request):
         return HttpResponse('Method not allowed, use POST', status=405)
     try:
         payload = json.loads(request.body.decode('utf-8'))
+        razorpay_order_id = str(payload['razorpay_order_id'])
+        razorpay_payment_id = str(payload['razorpay_payment_id'])
+        razorpay_signature = str(payload['razorpay_signature'])
         client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
         client.utility.verify_payment_signature({
-            'razorpay_order_id': str(payload['razorpay_order_id']),
-            'razorpay_payment_id': str(payload['razorpay_payment_id']),
-            'razorpay_signature': str(payload['razorpay_signature']),
+            'razorpay_order_id': razorpay_order_id,
+            'razorpay_payment_id': razorpay_payment_id,
+            'razorpay_signature': razorpay_signature,
         })
-        return JsonResponse({'success': True})
+
+        # The application Order is created when the Razorpay order is started.
+        # Once Razorpay verifies the payment, finalize that record and use its
+        # database id as the customer-facing order reference.
+        order = Order.objects.filter(payment_id=razorpay_order_id).first()
+        if order is None:
+            return JsonResponse({'success': False, 'error': 'Order not found.'}, status=404)
+
+        order.payment_id = razorpay_payment_id
+        order.status = 'paid'
+        order.save(update_fields=['payment_id', 'status'])
+
+        order_reference = str(order.id)
+        return JsonResponse({
+            'success': True,
+            'reference': order_reference,
+            # Keep an explicit order_id for clients that use that name.
+            'order_id': order_reference,
+        })
     except (KeyError, json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'success': False, 'error': 'Incomplete payment details.'}, status=400)
     except razorpay.errors.SignatureVerificationError:
@@ -124,10 +145,62 @@ def verify_payment(request):
         return JsonResponse({'success': False, 'error': str(error)}, status=400)
 
 def payment_success(request):
-    return render(request, 'success.html', {'reference': request.GET.get('reference', '')})
+    order_id = request.GET.get('reference', '')
+    return render(request, 'success.html', {'order_id': order_id})
 
 def payment_success_page(request):
     return payment_success(request)
+
+
+def _order_payload(order):
+    product_count = len([
+        product_name.strip()
+        for product_name in order.product_name.split(',')
+        if product_name.strip()
+    ]) or 1
+    status = 'Confirmed' if order.status in {'created', 'paid'} else order.status.title()
+    payment_status = 'Paid' if order.status == 'paid' else 'Pending'
+    return {
+        'id': f'EMB{order.id:010d}',
+        'track_id': order.id,
+        'date': order.created_at.isoformat(),
+        'product_count': product_count,
+        'total': order.amount // 100,
+        'status': status,
+        'payment_status': payment_status,
+    }
+
+
+def my_orders(request):
+    orders = Order.objects.all().order_by('-created_at')
+    order_cards = []
+    for order in orders:
+        card = _order_payload(order)
+        card['date'] = order.created_at
+        order_cards.append(card)
+    return render(request, 'orders.html', {'orders': order_cards})
+
+
+def orders_api(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Method not allowed, use GET'}, status=405)
+    orders = Order.objects.all().order_by('-created_at')
+    return JsonResponse([_order_payload(order) for order in orders], safe=False)
+
+
+def track_order(request, order_id):
+    order = Order.objects.filter(id=order_id).first()
+    if order is None:
+        return render(request, 'track_order.html', {
+            'order_id': order_id,
+            'not_found': True,
+        }, status=404)
+
+    return render(request, 'track_order.html', {
+        'order': order,
+        'order_id': order.id,
+        'timeline': ['Confirmed', 'Shipped', 'Delivered'],
+    })
 
 def account_login(request):
     if request.method == 'GET':

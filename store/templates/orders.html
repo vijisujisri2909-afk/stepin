@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders - StepUp.in</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <header class="bg-[#1a2a3a] text-white shadow-md">
+    <nav class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+      <a href="/" class="text-xl font-bold tracking-wide">StepUp.in</a>
+      <div class="order-3 flex w-full items-center gap-2 rounded-full bg-white px-4 py-2 text-gray-700 sm:order-2 sm:w-auto sm:min-w-[280px] lg:min-w-[360px]">
+        <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+        <input type="search" placeholder="Search here" aria-label="Search shoes" class="w-full bg-transparent text-sm outline-none">
+      </div>
+      <div class="order-2 flex items-center gap-4 text-sm sm:order-3 sm:gap-6">
+        <a href="/" class="hover:text-gray-300">Home</a>
+        <a href="/" class="hover:text-gray-300">Products</a>
+        <a href="/" class="hidden hover:text-gray-300 sm:inline">About</a>
+        <a href="/" class="hidden hover:text-gray-300 sm:inline">Contact</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <h1 class="mb-6 text-2xl font-bold">Orders</h1>
+
+    {% if orders %}
+      {% for order in orders %}
+        <article class="mb-4 flex flex-col gap-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:p-6">
+          <div>
+            <p class="font-bold">Order #{{ order.id }}</p>
+            <p class="mt-1 text-sm text-gray-500">{{ order.date|date:"m/d/Y, g:i:s A" }}</p>
+            <p class="mt-2 text-sm">{{ order.product_count }} product type(s) - ₹{{ order.total|floatformat:0 }}</p>
+          </div>
+          <div class="sm:text-right">
+            <p class="font-bold">{{ order.status }}</p>
+            <p class="text-sm text-gray-600">{{ order.payment_status }}</p>
+            <p class="text-sm text-gray-600">Current status: {{ order.status }}</p>
+            <p class="text-sm text-gray-600">Payment: {{ order.payment_status }}</p>
+            <a href="/track/{{ order.track_id }}/" class="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition hover:bg-indigo-700">Track Order →</a>
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <div class="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <p class="text-gray-600">You have no orders yet.</p>
+        <a href="/" class="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">Continue shopping</a>
+      </div>
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -8,9 +8,12 @@
 <body>
   <main>
     <h1>Payment successful</h1>
-    <p>Your Razorpay payment was verified successfully.</p>
-    {% if reference %}<p>Reference: {{ reference }}</p>{% endif %}
-    <a href="{% url 'home' %}">Continue shopping</a>
+    <p>Reference: {{ order_id }}</p>
+    {% if order_id and order_id != 'undefined' and order_id != 'null' %}
+      <a href="/track/{{ order_id }}/">Track Your Order</a>
+    {% endif %}
+    <a href="/orders/">My Orders</a>
+    <a href="/">Continue shopping</a>
   </main>
 </body>
 </html>
